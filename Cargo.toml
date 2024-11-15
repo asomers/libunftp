@@ -72,3 +72,7 @@ unftp-sbe-fs = { path = "../libunftp/crates/unftp-sbe-fs" }
 
 [lints]
 workspace = true
+
+[patch.crates-io]
+libc = { git = "https://github.com/asomers/libc.git", rev = "5344e1a71517b265e7c2fe14ada8cb6c56e152e0" }
+nix = { git = "https://github.com/asomers/nix.git", rev = "2ce1cf7d1454ae1f655fd7c79a27b0a428975404" }
