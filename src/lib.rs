@@ -51,6 +51,7 @@ pub(crate) mod server;
 pub mod storage;
 
 pub use crate::server::ftpserver::{Server, ServerBuilder, error::ServerError, options};
+pub use crate::server::RETR_SOCKETS;
 
 type BoxError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
