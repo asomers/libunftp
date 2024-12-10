@@ -7,7 +7,7 @@ use crate::{auth::UserDetail, server::controlchan, storage::StorageBackend};
 use std::ffi::OsString;
 use std::net::SocketAddr;
 #[cfg(unix)]
-use std::os::fd::AsRawFd;
+use std::os::fd::{AsFd, AsRawFd};
 use std::sync::Arc;
 use tokio::net::TcpListener;
 
@@ -78,11 +78,11 @@ where
         tcp_stream: &tokio::net::TcpStream,
         socket_addr: SocketAddr,
     ) {
-        let fd = tcp_stream.as_raw_fd();
+        let fd = tcp_stream.as_fd();
         nix::fcntl::fcntl(fd, nix::fcntl::FcntlArg::F_SETFD(nix::fcntl::FdFlag::empty())).unwrap();
         let result = tokio::process::Command::new(helper)
             .args(connection_helper_args.iter())
-            .arg(fd.to_string())
+            .arg(tcp_stream.as_raw_fd().to_string())
             .spawn();
         let logger2 = logger.clone();
         match result {

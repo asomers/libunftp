@@ -72,3 +72,6 @@ unftp-sbe-fs = { path = "../libunftp/crates/unftp-sbe-fs" }
 
 [lints]
 workspace = true
+
+[patch.crates-io]
+nix = { git = "https://github.com/nix-rust/nix.git", rev = "cfbaa08" }
