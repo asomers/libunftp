@@ -55,6 +55,7 @@ pub struct RetrSocket {
     bytes: AtomicU64,
     fd: RawFd,
     peer: SocketAddr,
+    tag: Option<String>
 }
 
 #[cfg(unix)]
@@ -74,7 +75,7 @@ impl RetrSocket {
         }
     }
 
-    fn new<W: AsRawFd>(w: &W) -> nix::Result<Self> {
+    fn new<W: AsRawFd, S: Into<String>>(w: &W, tag: Option<S>) -> nix::Result<Self> {
         let fd = w.as_raw_fd();
         let ss: nix::sys::socket::SockaddrStorage = nix::sys::socket::getpeername(fd)?;
         let peer = if let Some(sin) = ss.as_sockaddr_in() {
@@ -85,11 +86,16 @@ impl RetrSocket {
             return Err(nix::errno::Errno::EINVAL);
         };
         let bytes = Default::default();
-        Ok(RetrSocket { bytes, fd, peer })
+        let tag = tag.map(S::into);
+        Ok(RetrSocket { bytes, fd, peer, tag })
     }
 
     pub fn peer(&self) -> &SocketAddr {
         &self.peer
+    }
+
+    pub fn tag(&self) -> Option<&String> {
+        self.tag.as_ref()
     }
 }
 
@@ -184,15 +190,16 @@ impl<R: AsyncRead + Unpin> AsyncRead for MeasuringReader<R> {
 
 #[cfg(unix)]
 impl<W: AsRawFd> MeasuringWriter<W> {
-    fn new(writer: W, command: &'static str) -> MeasuringWriter<W> {
-        let retr_socket = RetrSocket::new(&writer).expect("TODO: better error handling");
+    fn new<User: UserDetail>(writer: W, command: &'static str, user: Option<&User>) -> MeasuringWriter<W> {
+        let tag = user.map(User::tag).flatten();
+        let retr_socket = RetrSocket::new(&writer, tag).expect("TODO: better error handling");
         RETR_SOCKETS.write().unwrap().insert(retr_socket.fd, retr_socket);
         Self { writer, command }
     }
 }
 #[cfg(not(unix))]
-impl<W> MeasuringWriter<W> {
-    fn new(writer: W, command: &'static str) -> MeasuringWriter<W> {
+impl<W: AsRawFd> MeasuringWriter<W> {
+    fn new<User: UserDetail>(writer: W, command: &'static str, user: Option<&User>) -> MeasuringWriter<W> {
         Self { writer, command }
     }
 }
@@ -276,7 +283,7 @@ where
         let path_copy = path.clone();
         let path = self.cwd.join(path);
         let tx: Sender<ControlChanMsg> = self.control_msg_tx.clone();
-        let mut output = Self::writer(self.socket, self.ftps_mode, "retr").await;
+        let mut output = Self::writer(self.socket, self.ftps_mode, "retr", (*self.user).as_ref()).await;
 
         let start_time = Instant::now();
         let result = self.storage.get_into((*self.user).as_ref().unwrap(), path, start_pos, &mut output).await;
@@ -422,7 +429,7 @@ where
     async fn exec_list_variant(self, path: Option<String>, command: ListCommand) {
         let path = self.resolve_path(path);
         let tx = self.control_msg_tx.clone();
-        let mut output = Self::writer(self.socket, self.ftps_mode.clone(), command.as_lower_str()).await;
+        let mut output = Self::writer(self.socket, self.ftps_mode.clone(), command.as_lower_str(), (*self.user).as_ref()).await;
 
         let start_time = Instant::now();
 
@@ -507,15 +514,15 @@ where
     }
 
     #[tracing_attributes::instrument]
-    async fn writer(socket: TcpStream, ftps_mode: FtpsConfig, command: &'static str) -> Box<dyn AsyncWrite + Send + Unpin + Sync> {
+    async fn writer(socket: TcpStream, ftps_mode: FtpsConfig, command: &'static str, user: Option<&User>) -> Box<dyn AsyncWrite + Send + Unpin + Sync> {
         match ftps_mode {
-            FtpsConfig::Off => Box::new(MeasuringWriter::new(socket, command)) as Box<dyn AsyncWrite + Send + Unpin + Sync>,
+            FtpsConfig::Off => Box::new(MeasuringWriter::new(socket, command, user)) as Box<dyn AsyncWrite + Send + Unpin + Sync>,
             FtpsConfig::Building { .. } => panic!("Illegal state"),
             FtpsConfig::On { tls_config } => {
                 let io = async move {
                     let acceptor: TlsAcceptor = tls_config.into();
                     let tls_stream = acceptor.accept(socket).await.unwrap();
-                    MeasuringWriter::new(tls_stream, command)
+                    MeasuringWriter::new(tls_stream, command, user)
                 }
                 .await;
                 Box::new(io) as Box<dyn AsyncWrite + Send + Unpin + Sync>

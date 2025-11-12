@@ -27,6 +27,11 @@ pub trait UserDetail: Send + Sync + Display + Debug {
     fn home(&self) -> Option<&Path> {
         None
     }
+
+    /// Return an optional per-user tag that is opaque to libunftp
+    fn tag(&self) -> Option<&String> {
+        None
+    }
 }
 
 /// DefaultUser is a default implementation of the `UserDetail` trait that doesn't hold any user
