@@ -30,6 +30,11 @@ pub trait UserDetail: Send + Sync + Display + Debug {
     fn home(&self) -> Option<&Path> {
         None
     }
+
+    /// Return an optional username that is opaque to libunftp and used for statistical purposes.
+    fn username(&self) -> &str {
+        ""
+    }
 }
 
 /// Provides a way to convert a [`Principal`] (authenticated identity) into a full [`UserDetail`]
