@@ -28,8 +28,8 @@ pub trait UserDetail: Send + Sync + Display + Debug {
         None
     }
 
-    /// Return an optional per-user tag that is opaque to libunftp
-    fn tag(&self) -> Option<&String> {
+    /// Return an optional username that is opaque to libunftp and used for statistical purposes.
+    fn username(&self) -> Option<&String> {
         None
     }
 }

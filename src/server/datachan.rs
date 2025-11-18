@@ -55,7 +55,7 @@ pub struct RetrSocket {
     bytes: AtomicU64,
     fd: RawFd,
     peer: SocketAddr,
-    tag: Option<String>
+    username: Option<String>
 }
 
 #[cfg(unix)]
@@ -75,7 +75,7 @@ impl RetrSocket {
         }
     }
 
-    fn new<W: AsRawFd, S: Into<String>>(w: &W, tag: Option<S>) -> nix::Result<Self> {
+    fn new<W: AsRawFd, S: Into<String>>(w: &W, user: Option<S>) -> nix::Result<Self> {
         let fd = w.as_raw_fd();
         let ss: nix::sys::socket::SockaddrStorage = nix::sys::socket::getpeername(fd)?;
         let peer = if let Some(sin) = ss.as_sockaddr_in() {
@@ -86,16 +86,16 @@ impl RetrSocket {
             return Err(nix::errno::Errno::EINVAL);
         };
         let bytes = Default::default();
-        let tag = tag.map(S::into);
-        Ok(RetrSocket { bytes, fd, peer, tag })
+        let username = user.map(S::into);
+        Ok(RetrSocket { bytes, fd, peer, username })
     }
 
     pub fn peer(&self) -> &SocketAddr {
         &self.peer
     }
 
-    pub fn tag(&self) -> Option<&String> {
-        self.tag.as_ref()
+    pub fn username(&self) -> Option<&String> {
+        self.username.as_ref()
     }
 }
 
@@ -191,8 +191,8 @@ impl<R: AsyncRead + Unpin> AsyncRead for MeasuringReader<R> {
 #[cfg(unix)]
 impl<W: AsRawFd> MeasuringWriter<W> {
     fn new<User: UserDetail>(writer: W, command: &'static str, user: Option<&User>) -> MeasuringWriter<W> {
-        let tag = user.map(User::tag).flatten();
-        let retr_socket = RetrSocket::new(&writer, tag).expect("TODO: better error handling");
+        let username = user.and_then(User::username);
+        let retr_socket = RetrSocket::new(&writer, username).expect("TODO: better error handling");
         RETR_SOCKETS.write().unwrap().insert(retr_socket.fd, retr_socket);
         Self { writer, command }
     }
