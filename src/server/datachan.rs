@@ -55,7 +55,7 @@ pub struct RetrSocket {
     bytes: AtomicU64,
     fd: RawFd,
     peer: SocketAddr,
-    username: Option<String>
+    username: String,
 }
 
 #[cfg(unix)]
@@ -86,7 +86,7 @@ impl RetrSocket {
             return Err(nix::errno::Errno::EINVAL);
         };
         let bytes = Default::default();
-        let username = user.map(S::into);
+        let username = user.map(S::into).unwrap_or_default();
         Ok(RetrSocket { bytes, fd, peer, username })
     }
 
@@ -94,8 +94,8 @@ impl RetrSocket {
         &self.peer
     }
 
-    pub fn username(&self) -> Option<&String> {
-        self.username.as_ref()
+    pub fn username(&self) -> &String {
+        &self.username
     }
 }
 
@@ -191,7 +191,7 @@ impl<R: AsyncRead + Unpin> AsyncRead for MeasuringReader<R> {
 #[cfg(unix)]
 impl<W: AsRawFd> MeasuringWriter<W> {
     fn new<User: UserDetail>(writer: W, command: &'static str, user: Option<&User>) -> MeasuringWriter<W> {
-        let username = user.and_then(User::username);
+        let username = user.map(User::username);
         let retr_socket = RetrSocket::new(&writer, username).expect("TODO: better error handling");
         RETR_SOCKETS.write().unwrap().insert(retr_socket.fd, retr_socket);
         Self { writer, command }

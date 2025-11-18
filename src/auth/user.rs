@@ -29,8 +29,8 @@ pub trait UserDetail: Send + Sync + Display + Debug {
     }
 
     /// Return an optional username that is opaque to libunftp and used for statistical purposes.
-    fn username(&self) -> Option<&String> {
-        None
+    fn username(&self) -> &str {
+        ""
     }
 }
 
